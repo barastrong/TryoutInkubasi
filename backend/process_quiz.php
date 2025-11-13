@@ -22,7 +22,7 @@ if ($conn->connect_error) {
     exit();
 }
 
-$gemini_api_key = 'AIzaSyAVTzcmqJ0aFtL81Cq9mSMgPuxBXjuvBDo'; // Pastikan ini adalah API key yang valid dan aktif
+$gemini_api_key = 'AIzaSyAVTzcmqJ0aFtL81Cq9mSMgPuxBXjuvBDo'; // Pastikan ini adalah API Key yang valid dan aktif
 $gemini_api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $gemini_api_key;
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -51,6 +51,7 @@ if ($stmt_username) {
     error_log("Failed to prepare statement for fetching username: " . $conn->error);
 }
 
+// Data kuesioner Anda (tidak ada perubahan di sini)
 $quiz_data = [
     [
     "question_id" => "1",
@@ -384,17 +385,20 @@ $quiz_data = [
   ]
 ];
 
-$prompt_text = "Analisis kepribadian dari jawaban kuesioner berikut. Output harus dalam format JSON yang spesifik:\n\n";
+
+$prompt_text = "Anda adalah seorang analis kepribadian profesional. Berikan analisis kepribadian dari jawaban kuesioner berikut ini. Output harus dalam format JSON yang spesifik, **tanpa teks tambahan sebelum atau sesudah blok JSON**, dan dibungkus dengan ```json```.\n\n";
 $prompt_text .= "Format Output JSON:\n";
+$prompt_text .= "```json\n"; // Tambahkan pembungkus JSON eksplisit
 $prompt_text .= "{\n";
 $prompt_text .= "  \"personality_type\": \"[Tipe kepribadian singkat, misal: The Innovator]\",\n";
 $prompt_text .= "  \"interest_category\": \"[Kategori minat umum, misal: Technology, Arts, Social]\",\n";
-$prompt_text .= "  \"summary\": \"[Ringkasan kepribadian panjang]\",\n";
-$prompt_text .= "  \"recommendations\": [\"[Profesi 1]\", \"[Profesi 2]\", ...],\n";
-$prompt_text .= "  \"analysis_json\": { \"[Aspek1]\": [persen], \"[Aspek2]\": [persen], ... }\n";
-$prompt_text .= "}\n\n";
-$prompt_text .= "Pastikan \"analysis_json\" memiliki setidaknya 3 aspek dengan persentase yang totalnya tidak harus 100%, melainkan menunjukkan bobot relatif. Pastikan juga 'recommendations' adalah array string. Jika tidak ada respons dari AI, berikan respons JSON default yang valid.\n\n";
-$prompt_text .= "Jawaban Kuesioner untuk pengguna ".$username.":\n";
+$prompt_text .= "  \"summary\": \"[Ringkasan kepribadian panjang, maksimal 5 paragraf]\",\n"; // Tambahkan batas untuk summary
+$prompt_text .= "  \"recommendations\": [\"[Profesi 1]\", \"[Profesi 2]\", \"[Profesi 3]\", \"[Profesi 4]\"],\n"; // Batasi jumlah rekomendasi
+$prompt_text .= "  \"analysis_json\": { \"[Aspek1]\": [persen], \"[Aspek2]\": [persen], \"[Aspek3]\": [persen], \"[Aspek4]\": [persen] }\n"; // Pastikan beberapa aspek
+$prompt_text .= "}\n";
+$prompt_text .= "```\n\n"; // Tutup pembungkus JSON eksplisit
+$prompt_text .= "Pastikan \"analysis_json\" memiliki setidaknya 4 aspek dengan persentase (angka) yang totalnya tidak harus 100%, melainkan menunjukkan bobot relatif. Pastikan juga 'recommendations' adalah array string dengan 4 profesi yang relevan. Jika Anda tidak dapat menghasilkan analisis yang valid, berikan pesan error yang jelas di dalam field 'summary' dan berikan nilai null/kosong untuk field lainnya. Jangan berikan respons JSON default yang valid.\n\n";
+$prompt_text .= "Berikut jawaban kuesioner dari pengguna ".$username.":\n";
 
 foreach ($user_answers as $question_id => $selected_option_id) {
     $question = null;
@@ -419,7 +423,7 @@ foreach ($user_answers as $question_id => $selected_option_id) {
     }
 }
 
-error_log("Generated Prompt for Gemini: " . $prompt_text);
+error_log("[".date('d-M-Y H:i:s T')."] Generated Prompt for Gemini: " . $prompt_text);
 
 $post_fields = json_encode([
     'contents' => [
@@ -433,7 +437,7 @@ $post_fields = json_encode([
         'temperature' => 0.7,
         'topP' => 0.95,
         'topK' => 40,
-        'maxOutputTokens' => 800,
+        'maxOutputTokens' => 2500, // Menaikkan lagi ke 2500 untuk amannya
         "responseMimeType" => "application/json",
     ],
     'safetySettings' => [
@@ -456,7 +460,7 @@ $post_fields = json_encode([
     ],
 ]);
 
-error_log("Sending to Gemini API. Post fields: " . $post_fields);
+error_log("[".date('d-M-Y H:i:s T')."] Sending to Gemini API. Post fields: " . $post_fields);
 
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $gemini_api_url);
@@ -466,37 +470,34 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Content-Type: application/json',
 ]);
+curl_setopt($ch, CURLOPT_TIMEOUT, 60); // Tingkatkan timeout agar AI punya waktu lebih lama
 
 $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curl_error = curl_error($ch);
 curl_close($ch);
 
-error_log("Gemini API HTTP Code: " . $http_code);
-error_log("Gemini API cURL Error: " . $curl_error);
-error_log("Gemini API Raw Response: " . $response);
+error_log("[".date('d-M-Y H:i:s T')."] Gemini API HTTP Code: " . $http_code);
+error_log("[".date('d-M-Y H:i:s T')."] Gemini API cURL Error: " . $curl_error);
+error_log("[".date('d-M-Y H:i:s T')."] Gemini API Raw Response: " . $response);
 
-// --- START: Default / Fallback AI Response Logic ---
-$default_ai_response = [
-    'personality_type' => 'Pembelajar Adaptif',
-    'interest_category' => 'Generalis',
-    'summary' => 'Maaf, kami tidak dapat menganalisis kepribadian Anda secara mendalam saat ini karena kendala teknis pada layanan AI. Namun, berdasarkan jawaban Anda, Anda tampak memiliki minat yang luas dan kemampuan adaptasi yang baik.',
-    'recommendations' => ['Pekerjaan Umum', 'Pekerjaan Fleksibel', 'Pengembangan Diri Berkelanjutan'],
-    'analysis_json' => ['Adaptabilitas' => 40, 'Minat_Luas' => 30, 'Potensi_Belajar' => 30]
+$ai_parsed_result = [
+    'personality_type' => null,
+    'interest_category' => null,
+    'summary' => 'Maaf, analisis kepribadian tidak dapat dilakukan.',
+    'recommendations' => [],
+    'analysis_json' => (object)[]
 ];
-// --- END: Default / Fallback AI Response Logic ---
-
-$ai_parsed_result = $default_ai_response; // Initialize with default
 $gemini_api_success = false;
-$gemini_message = ''; // To store specific Gemini error/success messages
+$gemini_message = '';
 
 if ($curl_error) {
-    error_log('cURL Error: ' . $curl_error);
-    $gemini_message = 'cURL Error saat terhubung ke AI.';
+    error_log('[ERROR] cURL Error: ' . $curl_error);
+    $gemini_message = 'cURL Error saat terhubung ke AI: ' . $curl_error;
 } elseif ($http_code !== 200) {
     $error_details = json_decode($response, true);
     $gemini_error_message = isset($error_details['error']['message']) ? $error_details['error']['message'] : 'Unknown error from Gemini API';
-    error_log('Gemini API Error: HTTP ' . $http_code . ' - ' . $gemini_error_message);
+    error_log('[ERROR] Gemini API Error: HTTP ' . $http_code . ' - ' . $gemini_error_message . ' Raw: ' . $response);
     $gemini_message = 'Gemini API Error: ' . $gemini_error_message . ' (HTTP ' . $http_code . ').';
 } else {
     $gemini_result = json_decode($response, true);
@@ -505,51 +506,64 @@ if ($curl_error) {
         $safety_ratings = $gemini_result['candidates'][0]['safetyRatings'] ?? [];
         $blocked_categories = [];
         foreach ($safety_ratings as $rating) {
-            if ($rating['probability'] === 'HIGH' || $rating['probability'] === 'UNSPECIFIED') {
+            if (isset($rating['probability']) && ($rating['probability'] === 'HIGH' || $rating['probability'] === 'UNSPECIFIED')) {
                 $blocked_categories[] = $rating['category'];
             }
         }
         $block_message = 'Konten diblokir oleh filter keamanan AI. Kategori: ' . implode(', ', $blocked_categories);
-        error_log('AI response blocked by safety filter: ' . $block_message . '. Raw response: ' . $response);
-        $gemini_message = 'Respons AI diblokir oleh filter keamanan.';
+        error_log('[WARNING] AI response blocked by safety filter: ' . $block_message . '. Raw response: ' . $response);
+        $gemini_message = 'Respons AI diblokir oleh filter keamanan. Mohon coba lagi dengan jawaban yang berbeda.';
     } else {
-        $ai_response_text = $gemini_result['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        // Coba beberapa path untuk mendapatkan teks respons
+        $ai_response_text = $gemini_result['candidates'][0]['content']['parts'][0]['text'] ??
+                            $gemini_result['candidates'][0]['content']['text'] ?? // Fallback jika struktur berbeda
+                            null;
 
         if ($ai_response_text === null) {
-            error_log('Unexpected response format from Gemini API: Missing content parts. Raw response: ' . $response);
-            $gemini_message = 'Respons AI tidak lengkap.';
+            error_log('[ERROR] Unexpected response format from Gemini API: Missing content parts. Raw response: ' . $response);
+            $gemini_message = 'Respons AI tidak lengkap atau format tidak terduga.';
         } else {
             error_log("AI Raw Response Text: " . $ai_response_text);
-            $cleaned_ai_response_text = preg_replace('/```json\s*|\s*```/', '', $ai_response_text);
+            
+            // Perbaikan regex untuk lebih agresif membersihkan pembungkus JSON
+            $cleaned_ai_response_text = preg_replace('/```json\s*|```/', '', $ai_response_text);
             $cleaned_ai_response_text = trim($cleaned_ai_response_text);
             error_log("AI Cleaned Response Text: " . $cleaned_ai_response_text);
 
             $parsed_temp = json_decode($cleaned_ai_response_text, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
-                error_log('Failed to parse AI response as JSON. JSON Error: ' . json_last_error_msg() . '. Cleaned response: ' . $cleaned_ai_response_text);
-                $gemini_message = 'Gagal memproses format AI (JSON invalid).';
+                error_log('[ERROR] Failed to parse AI response as JSON. JSON Error: ' . json_last_error_msg() . '. Cleaned response: ' . $cleaned_ai_response_text);
+                $gemini_message = 'Gagal memproses format AI (JSON invalid): ' . json_last_error_msg();
+                // Untuk debugging, simpan respons mentah jika JSON gagal
+                $ai_parsed_result['summary'] = "Maaf, analisis kepribadian gagal. Respons AI tidak valid. Raw AI: " . substr($cleaned_ai_response_text, 0, 500) . "...";
             } else {
                 $required_keys = ['personality_type', 'interest_category', 'summary', 'recommendations', 'analysis_json'];
                 $all_keys_present = true;
                 foreach ($required_keys as $key) {
                     if (!isset($parsed_temp[$key])) {
-                        error_log("Missing required key in AI parsed result: " . $key . ". Parsed result: " . print_r($parsed_temp, true));
-                        $gemini_message = 'Respons AI tidak lengkap (missing ' . $key . ').';
+                        error_log("[ERROR] Missing required key in AI parsed result: " . $key . ". Parsed result: " . print_r($parsed_temp, true));
+                        $gemini_message = 'Respons AI tidak lengkap (missing key: ' . $key . ').';
                         $all_keys_present = false;
                         break;
                     }
                 }
 
                 if ($all_keys_present) {
-                    // Ensure recommendations is always an array
+                    // Pastikan recommendations selalu array
                     if (!is_array($parsed_temp['recommendations'])) {
+                        // Jika string, coba pecah
                         if (is_string($parsed_temp['recommendations']) && !empty($parsed_temp['recommendations'])) {
                             $parsed_temp['recommendations'] = array_map('trim', explode(',', $parsed_temp['recommendations']));
                         } else {
                             $parsed_temp['recommendations'] = [];
                         }
                     }
+                    // Pastikan analysis_json adalah objek/array
+                    if (!is_array($parsed_temp['analysis_json']) && !is_object($parsed_temp['analysis_json'])) {
+                        $parsed_temp['analysis_json'] = (object)[];
+                    }
+
                     $ai_parsed_result = $parsed_temp;
                     $gemini_api_success = true;
                 }
@@ -558,21 +572,21 @@ if ($curl_error) {
     }
 }
 
-// Prepare data for database insertion (either AI result or default fallback)
-$data_to_save = $ai_parsed_result; // Start with the AI result (or default if AI failed to parse/generate)
-$data_to_save['username'] = $username; // Add username for consistency if needed later
-
-// Override summary with a message if Gemini failed, but we're still saving the default result
 if (!$gemini_api_success) {
-    $data_to_save['summary'] = $default_ai_response['summary'] . " (Detail error: " . $gemini_message . ")";
-    $data_to_save['personality_type'] = $default_ai_response['personality_type'];
-    $data_to_save['interest_category'] = $default_ai_response['interest_category'];
-    $data_to_save['recommendations'] = $default_ai_response['recommendations'];
-    $data_to_save['analysis_json'] = $default_ai_response['analysis_json'];
+    $ai_parsed_result['personality_type'] = null;
+    $ai_parsed_result['interest_category'] = null;
+    // Jika summary sudah diisi dari parsing gagal, jangan ditimpa
+    if (!str_contains($ai_parsed_result['summary'], 'Raw AI:')) { // Cek jika ada pesan error raw AI
+      $ai_parsed_result['summary'] = 'Maaf, analisis kepribadian gagal. ' . $gemini_message;
+    }
+    $ai_parsed_result['recommendations'] = [];
+    $ai_parsed_result['analysis_json'] = (object)[];
 }
 
+$data_to_save = $ai_parsed_result;
+$data_to_save['username'] = $username;
 
-error_log("Attempting to save result to DB. Data: " . print_r($data_to_save, true));
+error_log("[".date('d-M-Y H:i:s T')."] Attempting to save result to DB. Data: " . print_r($data_to_save, true));
 
 $stmt_insert = $conn->prepare("
   INSERT INTO results
@@ -581,8 +595,8 @@ $stmt_insert = $conn->prepare("
 ");
 
 if (!$stmt_insert) {
-    error_log("Failed to prepare INSERT statement: " . $conn->error);
-    echo json_encode(["status" => "error", "message" => "Terjadi kesalahan server: Gagal menyiapkan penyimpanan data hasil. Mohon coba lagi.", 'result' => array_merge(['username' => $username], $default_ai_response)]);
+    error_log("[ERROR] Failed to prepare INSERT statement: " . $conn->error);
+    echo json_encode(["status" => "error", "message" => "Terjadi kesalahan server: Gagal menyiapkan penyimpanan data hasil. Mohon coba lagi."]);
     $conn->close();
     exit();
 }
@@ -590,12 +604,13 @@ if (!$stmt_insert) {
 $recommendations_str = json_encode($data_to_save['recommendations']);
 $analysis_json_str = json_encode($data_to_save['analysis_json']);
 
-$personality_type = (string)$data_to_save['personality_type'];
-$interest_category = (string)$data_to_save['interest_category'];
-$summary = (string)$data_to_save['summary'];
+// Pastikan tipe data sesuai dengan kolom DB Anda
+$personality_type = (string)($data_to_save['personality_type'] ?? '');
+$interest_category = (string)($data_to_save['interest_category'] ?? '');
+$summary = (string)($data_to_save['summary'] ?? '');
 
 $stmt_insert->bind_param(
-  "isssss",
+  "isssss", // i untuk user_id (int), s untuk semua string lainnya (personality_type, interest_category, summary, recommendations_str, analysis_json_str)
   $user_id,
   $personality_type,
   $interest_category,
@@ -605,11 +620,11 @@ $stmt_insert->bind_param(
 );
 
 if (!$stmt_insert->execute()) {
-    error_log("Failed to save AI analysis result to database: " . $stmt_insert->error);
+    error_log("[ERROR] Failed to save AI analysis result to database: " . $stmt_insert->error);
     echo json_encode([
         "status" => "error",
         "message" => "Gagal menyimpan hasil analisis ke database. Anda bisa coba kembali nanti. (Detail: " . $stmt_insert->error . ")",
-        'result' => array_merge(['username' => $username], $default_ai_response) // Still provide default for display
+        'result' => $data_to_save
     ]);
     $stmt_insert->close();
     $conn->close();
@@ -617,11 +632,11 @@ if (!$stmt_insert->execute()) {
 }
 $stmt_insert->close();
 
-error_log("Quiz processing successful for user_id: " . $user_id . ". Result saved to DB.");
+error_log("[".date('d-M-Y H:i:s T')."] Quiz processing successful for user_id: " . $user_id . ". Result saved to DB.");
 echo json_encode([
     'status' => 'success',
-    'message' => $gemini_api_success ? 'Analisis kepribadian berhasil disimpan.' : 'Analisis kepribadian berhasil disimpan (menggunakan data default karena kendala AI).',
-    'result' => $data_to_save // Send the data that was successfully saved
+    'message' => $gemini_api_success ? 'Analisis kepribadian berhasil disimpan.' : 'Analisis kepribadian disimpan dengan pesan kegagalan AI. Lihat log untuk detail.',
+    'result' => $data_to_save
 ]);
 $conn->close();
 
