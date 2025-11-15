@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Loader2, Clock, Target, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = 'http://192.168.101.181:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface CustomButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'outline' | 'link';
+  variant?: 'default' | 'outline' | 'link'; 
   children: React.ReactNode;
 }
 

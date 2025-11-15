@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { User, Briefcase, Target, Award, AlertCircle, Loader2, CheckCircle, Home, RefreshCw, TrendingUp } from 'lucide-react';
 
-const API_BASE_URL = 'http://192.168.101.181:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface AnalysisData {
   name: string;
