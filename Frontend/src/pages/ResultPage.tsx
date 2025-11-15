@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { User, Briefcase, Target, Award, AlertCircle, Loader2, CheckCircle, Home, RefreshCw, Download, Share2, TrendingUp } from 'lucide-react';
+import { User, Briefcase, Target, Award, AlertCircle, Loader2, CheckCircle, Home, RefreshCw, TrendingUp } from 'lucide-react';
 
 const API_BASE_URL = 'http://192.168.101.181:5000';
 
@@ -30,7 +30,6 @@ export default function ResultPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [aiFallbackMessage, setAiFallbackMessage] = useState<string | null>(initialAiErrorMessage);
-  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const fetchResult = async () => {
@@ -95,9 +94,9 @@ export default function ResultPage() {
         } else {
           setError(data.message || "Terjadi kesalahan saat mengambil hasil analisis.");
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Error fetching result:", err);
-        setError(`Gagal terhubung ke server atau mengambil data: ${err.message || "Kesalahan tidak diketahui"}. Pastikan backend server berjalan dan dapat diakses.`);
+        setError(`Gagal terhubung ke server atau mengambil data: ${err || "Kesalahan tidak diketahui"}. Pastikan backend server berjalan dan dapat diakses.`);
       } finally {
         setLoading(false);
       }
@@ -105,31 +104,6 @@ export default function ResultPage() {
 
     fetchResult();
   }, [userId]);
-
-  const handleDownloadPDF = async () => {
-    setDownloading(true);
-    try {
-      const html2pdf = (await import('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js')).default;
-      
-      const element = resultRef.current;
-      if (!element) return;
-
-      const opt = {
-        margin: 10,
-        filename: `hasil-tes-kepribadian-${result?.username || 'user'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, logging: false, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      await html2pdf().set(opt).from(element).save();
-    } catch (err) {
-      console.error('Error generating PDF:', err);
-      alert('Gagal mengunduh PDF. Silakan coba lagi.');
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const handleRetry = () => {
     window.location.reload();
@@ -464,23 +438,6 @@ export default function ResultPage() {
               Analisis ini dihasilkan oleh AI dan bersifat sebagai panduan awal untuk pengembangan diri Anda. Hasil ini dapat membantu Anda memahami kepribadian dan potensi yang Anda miliki.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <button
-                onClick={handleDownloadPDF}
-                disabled={downloading}
-                className="inline-flex items-center bg-[#3D0E61] text-white px-8 py-4 rounded-xl hover:bg-[#2D0A4D] font-semibold transition-all transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {downloading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Mengunduh...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-5 h-5 mr-2" />
-                    Unduh PDF
-                  </>
-                )}
-              </button>
               <button
                 onClick={handleBackHome}
                 className="inline-flex items-center bg-white border-2 border-[#3D0E61] text-[#3D0E61] px-8 py-4 rounded-xl hover:bg-[#FFF0F5] font-semibold transition-all transform hover:scale-105 shadow-lg"
